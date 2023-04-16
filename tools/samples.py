@@ -37,9 +37,7 @@ class Samples:
 
         if teacher:
             teacher_dirty_name = other.get_teacher_name_by_id(teacher, await wrapper.teacher(event, aiohttp_session))
-            last_name, first_name, father_name = teacher_dirty_name.split(" ")
-
-            teacher_name = f"<b>{first_name} {father_name}\n</b>"
+            teacher_name = other.get_humanize_teacher_name(teacher_dirty_name)
 
         else:
             teacher_name = "<b><u>Не задано</u></b>\n"
@@ -128,9 +126,7 @@ class Samples:
         teacher = stmt.scalar()
         if teacher:
             teacher_dirty_name = other.get_teacher_name_by_id(teacher, await wrapper.teacher(event, aiohttp_session))
-            last_name, first_name, father_name = teacher_dirty_name.split(" ")
-
-            teacher_name = f"<b>{first_name} {father_name}\n</b>"
+            teacher_name = other.get_humanize_teacher_name(teacher_dirty_name)
 
         else:
             teacher_name = "<b><u>Не задано</u></b>\n"
