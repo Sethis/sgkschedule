@@ -3,10 +3,11 @@ import random
 from aiogram import Router, Bot
 from aiogram.filters import Text, ChatMemberUpdatedFilter, JOIN_TRANSITION, ADMINISTRATOR, IS_NOT_MEMBER
 
-from aiogram.types import Message, CallbackQuery, ChatMemberUpdated, ReplyKeyboardRemove
+from aiogram.types import Message, CallbackQuery, ErrorEvent, ChatMemberUpdated, ReplyKeyboardRemove
 
 from tools import other
 from tools import jokes
+from tools import texts
 
 router = Router(name="rest")
 
@@ -61,11 +62,11 @@ async def menu(callback: CallbackQuery):
 
 
 @router.errors()
-async def menu(event: CallbackQuery | Message):
-    if isinstance(event, Message):
-        return await event.answer("Кажется, случилась какая-то ошибка. Попробуйте позже, а также обязательно напишите "
-                                  "разработчику по ссылке: t.me/colame")
-    if isinstance(event, CallbackQuery):
-        return await event.message.answer("Кажется, случилась какая-то ошибка. Попробуйте позже, "
-                                          "а также обязательно напишите разработчику по ссылке: t.me/colame")
+async def menu(event: ErrorEvent):
+    if event.update.callback_query:
+        await event.update.callback_query.message.answer(texts.error_handler_text)
+    if event.update.message:
+        await event.update.message.answer(texts.error_handler_text)
+
+    raise event.exception
 
