@@ -138,6 +138,14 @@ class Other:
 
         return markup.as_markup(resize_keyboard=True)
 
+    @staticmethod
+    def get_humanize_teacher_name(dirty_name: str) -> str:
+        split_name = dirty_name.split(" ")
+        if len(split_name) == 3:
+            return f"<b>{split_name[0]} {split_name[2]}</b>\n"
+
+        return f"<b>{dirty_name}</b>\n"
+
 
 class Samples:
     @staticmethod
