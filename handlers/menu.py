@@ -9,13 +9,11 @@ from aiogram.types import Message, CallbackQuery
 from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aiohttp import ClientSession
-
 from db.models import User
 from filters import PrefixFilter, ParseFilter
 
 from tools import texts
-from tools import wrapper
+from tools import fast_parsing
 from tools import other
 from tools import samples
 from tools import LazyEditing
@@ -42,10 +40,8 @@ async def start_message(message: Message, session: AsyncSession):
 
 
 @router.message(PrefixFilter("insert_group"))
-async def insert_group(message: Message, session: AsyncSession, aiohttp_session: ClientSession):
-    group = message.text
-    group_list = await wrapper.group(message, aiohttp_session)
-    group_id = other.check_groups_in_groups_list(group, group_list)
+async def insert_group(message: Message, session: AsyncSession):
+    group_id = await fast_parsing.get_group_id_by_name(session, message.text)
 
     if group_id is None:
         return await message.answer(texts.error_group_insert)
@@ -63,21 +59,15 @@ async def insert_group(message: Message, session: AsyncSession, aiohttp_session:
 
 @router.message(Command(commands="menu"), PrefixFilter("menu"))
 @router.message(Text(text="Меню"), PrefixFilter("menu"))
-async def message_menu(message: Message, session: AsyncSession, aiohttp_session: ClientSession):
-    await samples.show_menu(message, session, aiohttp_session)
+async def message_menu(message: Message, session: AsyncSession):
+    await samples.show_menu(message, session)
 
 
 @router.callback_query(ParseFilter(prefix="menu"))
-async def callback_menu(callback: CallbackQuery, session: AsyncSession, aiohttp_session: ClientSession,
+async def callback_menu(callback: CallbackQuery, session: AsyncSession,
                         lazy: Optional[LazyEditing] = None):
 
-    await samples.show_menu(callback, session, aiohttp_session, lazy)
-
-
-@router.message(Command(commands="menu"))
-@router.message(Text(text="Меню"))
-async def error_menu(event: Message):
-    await event.answer(texts.not_registr)
+    await samples.show_menu(callback, session, lazy)
 
 
 @router.callback_query(ParseFilter(prefix="schelp"))
@@ -100,25 +90,25 @@ async def cabinet(callback: CallbackQuery):
 
 @router.callback_query(ParseFilter(prefix="settings"))
 async def settings_hangler(callback: CallbackQuery, session: AsyncSession,
-                           lazy: LazyEditing, aiohttp_session: ClientSession):
+                           lazy: LazyEditing):
 
-    await samples.show_settings(callback, session, aiohttp_session, lazy)
+    await samples.show_settings(callback, session, lazy)
 
 
 @router.callback_query(ParseFilter(prefix="stop_change"))
 async def stop_change(callback: CallbackQuery, session: AsyncSession,
-                      lazy: LazyEditing, aiohttp_session: ClientSession):
+                      lazy: LazyEditing):
 
     stmt = update(User).where(User.id == callback.from_user.id).values(prefix="menu")
     await session.execute(stmt)
     await session.commit()
 
-    await samples.show_settings(callback, session, aiohttp_session, lazy)
+    await samples.show_settings(callback, session, lazy)
 
 
 @router.callback_query(ParseFilter(prefix="change_group"))
 async def change_group(callback: CallbackQuery, session: AsyncSession, lazy: LazyEditing):
-    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="insert_group")
+    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="change_group")
     await session.execute(stmt)
     await session.commit()
 
@@ -129,6 +119,28 @@ async def change_group(callback: CallbackQuery, session: AsyncSession, lazy: Laz
     )
 
     await lazy.edit(texts.change_group_text, reply_markup=markup)
+
+
+@router.message(PrefixFilter("change_group"))
+async def insert_group(message: Message, session: AsyncSession):
+    group_id = await fast_parsing.get_group_id_by_name(session, message.text)
+
+    if group_id is None:
+        markup = Builder(
+            Row(Button("⇦", prefix="stop_change"))
+                )
+
+        return await message.answer(texts.error_group_insert, reply_markup=markup)
+
+    stmt = update(User).values(group_id=group_id).where(User.id == message.from_user.id)
+    await session.execute(stmt)
+    await session.commit()
+
+    stmt = update(User).values(prefix="menu").where(User.id == message.from_user.id)
+    await session.execute(stmt)
+    await session.commit()
+
+    await samples.show_settings(message, session)
 
 
 @router.callback_query(ParseFilter(prefix="change_teacher"))
@@ -147,15 +159,16 @@ async def change_teacher(callback: CallbackQuery, session: AsyncSession, lazy: L
 
 
 @router.message(PrefixFilter("change_teacher"))
-async def changing_teacher(message: Message, session: AsyncSession, aiohttp_session: ClientSession):
-    teacher_name = message.text
-    teacher_list = await wrapper.teacher(message, aiohttp_session)
-    teacher = other.get_teacher_by_name(teacher_name, teacher_list)
+async def changing_teacher(message: Message, session: AsyncSession):
+    teacher_id = await fast_parsing.get_teacher_id_by_name(session, message.text)
 
-    if teacher is None:
-        return await message.answer(texts.error_teacher_insert)
+    if teacher_id is None:
+        markup = Builder(
+            Row(Button("⇦", prefix="stop_change"))
+        )
+        return await message.answer(texts.error_teacher_insert, reply_markup=markup)
 
-    stmt = update(User).values(teacher_id=teacher.id).where(User.id == message.from_user.id)
+    stmt = update(User).values(teacher_id=teacher_id).where(User.id == message.from_user.id)
     await session.execute(stmt)
     await session.commit()
 
@@ -163,4 +176,4 @@ async def changing_teacher(message: Message, session: AsyncSession, aiohttp_sess
     await session.execute(stmt)
     await session.commit()
 
-    await samples.show_settings(message, session, aiohttp_session)
+    await samples.show_settings(message, session)

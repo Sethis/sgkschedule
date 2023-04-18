@@ -69,4 +69,3 @@ async def menu(event: ErrorEvent):
         await event.update.message.answer(texts.error_handler_text)
 
     raise event.exception
-

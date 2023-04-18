@@ -1,4 +1,7 @@
 
+
+import sys
+
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -24,15 +27,8 @@ async def start_spam(message: Message, session: AsyncSession, bot: Bot):
     await message.answer("Готово!!!!!!!")
 
 
-"""
-         .-o=o-.
-     ,  /=o=o=o=\ .--.
-    _|\|=o=O=o=O=|    |
-__.'  a`\=o=o=o=(`\   /
-'.   a 4/`|.-""'`\ \ ;'`) .--.
-  \   .'  /   .--'  |_.' / .-_)
-   `)  _.'   /     /`-..' /
-    `'-.____;     /'-._.-'
-             `'''`
-             
-"""
+@router.message(Command(commands=["kys"]), F.from_user.id == Const.admin)
+async def start_spam(message: Message):
+    await message.answer("Лан(")
+
+    sys.exit()

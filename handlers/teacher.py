@@ -17,7 +17,8 @@ from filters import PrefixFilter, ParseFilter, DefaultTeacherFiler
 
 from tools import texts
 from tools import wrapper
-from tools import other, samples
+from tools import fast_parsing
+from tools import samples
 from tools import LazyEditing
 from tools import Builder, Row, Button
 from tools import Parser
@@ -34,7 +35,7 @@ async def schedule_teacher(message: Message, lazy: LazyEditing,
     result = await session.execute(stmt)
 
     teacher_id = result.scalar()
-    teacher_name = other.get_teacher_name_by_id(teacher_id, await wrapper.teacher(message, aiohttp_session))
+    teacher_name = await fast_parsing.get_teacher_name_by_id(session, teacher_id)
 
     current = datetime.now().date()
 
@@ -82,15 +83,14 @@ async def teacher_for_schedule(message: Message, session: AsyncSession,
 
     current = datetime.now().date()
 
-    teacher = message.text
-    teacher_list = await wrapper.teacher(message, aiohttp_session)
-    teacher = other.get_teacher_by_name(teacher, teacher_list)
+    teacher_id = await fast_parsing.get_teacher_id_by_name(session, message.text)
+    teacher_name = await fast_parsing.get_teacher_name_by_id(session, teacher_id)
 
-    if teacher is None:
-        return await message.answer(texts.error_teacher_insert)
-
-    teacher_id = teacher.id
-    teacher_name = teacher.name
+    if teacher_id is None:
+        markup = Builder(
+            Row(Button("⇦", prefix="stop_change_sc"))
+        )
+        return await message.answer(texts.error_teacher_insert, reply_markup=markup)
 
     stmt = update(User).where(User.id == message.from_user.id).values(prefix="menu")
     await session.execute(stmt)
@@ -101,16 +101,15 @@ async def teacher_for_schedule(message: Message, session: AsyncSession,
 
 @router.callback_query(ParseFilter(prefix="sc_by_th"))
 async def schedule_by_teacher(callback: CallbackQuery, lazy: LazyEditing,
-                              parser: Parser, aiohttp_session: ClientSession):
+                              parser: Parser, aiohttp_session: ClientSession, session: AsyncSession):
 
     additional = parser.additional
 
-    to_date, teacher = additional.split("&")
+    to_date, teacher_id = additional.split("&")
 
     to_date = datetime.strptime(to_date, "%Y-%m-%d").date()
 
-    teacher_id = teacher
-    teacher_name = other.get_teacher_name_by_id(teacher_id, await wrapper.teacher(callback, aiohttp_session))
+    teacher_name = await fast_parsing.get_teacher_name_by_id(session, teacher_id)
 
     await show_teacher_schedule(callback, to_date, teacher_id, teacher_name, aiohttp_session, lazy)
 

@@ -16,8 +16,9 @@ from db.models import User
 from filters import PrefixFilter, ParseFilter
 
 from tools import texts
+from tools import fast_parsing
+from tools import samples
 from tools import wrapper
-from tools import other, samples
 from tools import LazyEditing
 from tools import Builder, Row, Button
 from tools import Parser
@@ -32,23 +33,23 @@ async def by_default(callback: CallbackQuery, session: AsyncSession,
 
     current = datetime.now().date()
 
-    group = await session.execute(select(User.group_id).where(User.id == callback.from_user.id))
-    group = group.scalar()
+    stmt = await session.execute(select(User.group_id).where(User.id == callback.from_user.id))
+    group_id = stmt.scalar()
 
-    group_name = other.get_group_name_by_id(group, await wrapper.group(callback, aiohttp_session))
+    group_name = await fast_parsing.get_group_name_by_id(session, group_id)
 
-    await show_group_schedule(callback, current, group, group_name, aiohttp_session, lazy)
+    await show_group_schedule(callback, current, group_id, group_name, aiohttp_session, lazy)
 
 
 @router.callback_query(ParseFilter(prefix="stop_change_sc"))
 async def stop_change_schedule(callback: CallbackQuery, session: AsyncSession,
-                               lazy: LazyEditing, aiohttp_session: ClientSession):
+                               lazy: LazyEditing):
 
     stmt = update(User).where(User.id == callback.from_user.id).values(prefix="menu")
     await session.execute(stmt)
     await session.commit()
 
-    await samples.show_menu(callback, session, aiohttp_session, lazy)
+    await samples.show_menu(callback, session, lazy)
 
 
 @router.callback_query(ParseFilter(prefix="scbg_stop_change"))
@@ -85,14 +86,14 @@ async def by_group(callback: CallbackQuery, session: AsyncSession, lazy: LazyEdi
 async def schedule_group(message: Message, session: AsyncSession, aiohttp_session: ClientSession):
     current = datetime.now().date()
 
-    group = message.text
-    group_list = await wrapper.group(message, aiohttp_session)
-
-    group_id = other.check_groups_in_groups_list(group, group_list)
-    group_name = other.get_group_name_by_id(group_id, group_list)
+    group_id = await fast_parsing.get_group_id_by_name(session, message.text)
+    group_name = await fast_parsing.get_group_name_by_id(session, group_id)
 
     if group_id is None:
-        return await message.answer(texts.error_group_insert)
+        markup = Builder(
+            Row(Button("⇦", prefix="stop_change_sc"))
+        )
+        return await message.answer(texts.error_group_insert, reply_markup=markup)
 
     stmt = update(User).where(User.id == message.from_user.id).values(prefix="menu")
     await session.execute(stmt)
