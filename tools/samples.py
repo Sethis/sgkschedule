@@ -10,33 +10,31 @@ from aiogram.types import Message, CallbackQuery
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aiohttp import ClientSession
-
-
 from base.types import TeacherResponse, LessonResponse, CabinentResponse
 
 from db.models import User
 
-from tools import wrapper, LazyEditing, texts
-from tools import Button, Row, Builder
-
-from tools import other
+from tools.utils import LazyEditing
+from tools.texts import texts
+from tools.utils import Button, Row, Builder
+from tools.other import other
+from tools.other import fast_parsing
 
 
 class Samples:
     @staticmethod
     async def show_menu(event: CallbackQuery | Message, session: AsyncSession,
-                        aiohttp_session: ClientSession, lazy: Optional[LazyEditing] = None):
+                        lazy: Optional[LazyEditing] = None):
         stmt = await session.execute(select(User.group_id).where(User.id == event.from_user.id))
         group_id = stmt.scalar()
 
-        group_name = other.get_group_name_by_id(group_id, await wrapper.group(event, aiohttp_session))
+        group_name = await fast_parsing.get_group_name_by_id(session, group_id)
 
         stmt = await session.execute(select(User.teacher_id).where(User.id == event.from_user.id))
-        teacher = stmt.scalar()
+        teacher_id = stmt.scalar()
 
-        if teacher:
-            teacher_dirty_name = other.get_teacher_name_by_id(teacher, await wrapper.teacher(event, aiohttp_session))
+        if teacher_id:
+            teacher_dirty_name = await fast_parsing.get_teacher_name_by_id(session, teacher_id)
             teacher_name = other.get_humanize_teacher_name(teacher_dirty_name)
 
         else:
@@ -116,16 +114,16 @@ class Samples:
 
     @staticmethod
     async def show_settings(event: CallbackQuery | Message, session: AsyncSession,
-                            aiohttp_session: ClientSession, lazy: Optional[LazyEditing] = None):
+                            lazy: Optional[LazyEditing] = None):
         stmt = await session.execute(select(User.group_id).where(User.id == event.from_user.id))
         group_id = stmt.scalar()
 
-        group_name = other.get_group_name_by_id(group_id, await wrapper.group(event, aiohttp_session))
+        group_name = await fast_parsing.get_group_name_by_id(session, group_id)
 
         stmt = await session.execute(select(User.teacher_id).where(User.id == event.from_user.id))
-        teacher = stmt.scalar()
-        if teacher:
-            teacher_dirty_name = other.get_teacher_name_by_id(teacher, await wrapper.teacher(event, aiohttp_session))
+        teacher_id = stmt.scalar()
+        if teacher_id:
+            teacher_dirty_name = await fast_parsing.get_teacher_name_by_id(session, teacher_id)
             teacher_name = other.get_humanize_teacher_name(teacher_dirty_name)
 
         else:

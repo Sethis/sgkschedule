@@ -1,5 +1,7 @@
 
 
+import asyncio
+
 from aiohttp.client_exceptions import ContentTypeError
 from aiohttp import ClientSession
 
@@ -21,7 +23,7 @@ class Wrapper:
         await event.message.answer(texts.wrapping_error_text)
 
     @staticmethod
-    async def group(event: CallbackQuery | Message, aiohttp_session: ClientSession) -> GroupResponse:
+    async def group(aiohttp_session: ClientSession) -> GroupResponse:
         try:
             async with aiohttp_session.get('https://mfc.samgk.ru/api/groups') as response:
                 json = await response.json()
@@ -29,12 +31,12 @@ class Wrapper:
                 return GroupResponse(item=json)
 
         except ContentTypeError:
-            await wrapper.send_message_about_exception(event)
+            await asyncio.sleep(2)
 
-        raise Exception("Error in parsing")
+            await Wrapper.group(aiohttp_session)
 
     @staticmethod
-    async def cabinet(event: CallbackQuery | Message, aiohttp_session: ClientSession) -> CabinentResponse:
+    async def cabinet(aiohttp_session: ClientSession) -> CabinentResponse:
         try:
             async with aiohttp_session.get('https://asu.samgk.ru/api/cabs') as response:
                 text = await response.text()
@@ -47,12 +49,12 @@ class Wrapper:
                 return CabinentResponse(item=cabinets)
 
         except ContentTypeError:
-            await wrapper.send_message_about_exception(event)
+            await asyncio.sleep(2)
 
-        raise Exception("Error in parsing")
+            await Wrapper.cabinet(aiohttp_session)
 
     @staticmethod
-    async def teacher(event: CallbackQuery | Message, aiohttp_session: ClientSession) -> TeacherResponse:
+    async def teacher(aiohttp_session: ClientSession) -> TeacherResponse:
         try:
             async with aiohttp_session.get('https://asu.samgk.ru/api/teachers') as response:
                 json = await response.json()
@@ -60,9 +62,9 @@ class Wrapper:
                 return TeacherResponse(item=json)
 
         except ContentTypeError:
-            await wrapper.send_message_about_exception(event)
+            await asyncio.sleep(2)
 
-        raise Exception("Error in parsing")
+            await Wrapper.teacher(aiohttp_session)
 
     @staticmethod
     async def schedule_by_group(group: int, to_date: str, event: CallbackQuery | Message,

@@ -50,4 +50,4 @@ class Const:
 
     admin: Final = 701104810
 
-
+    trottle_seconds = 0.75

@@ -1,24 +1,20 @@
 
 
-from typing import Optional
+from typing import Optional, Sequence
 
 from datetime import date, datetime, timedelta
 
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, KeyboardButton
 
 from sqlalchemy import select
+from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aiohttp import ClientSession
-
 from base.types import Lesson, Teacher
-from base.types import GroupResponse, TeacherResponse, LessonResponse, CabinentResponse
+from base.types import GroupResponse, TeacherResponse
 
-from db.models import User
-
-from tools import wrapper, LazyEditing, texts
-from tools import Button, Row, Builder
+from db.models import Group, Teacher
 
 from .const import Const
 
@@ -32,13 +28,12 @@ class Other:
         return name.lower().replace("-", "")
 
     @staticmethod
-    def check_groups_in_groups_list(group: str, groups_list: GroupResponse) -> Optional[int]:
+    def check_groups_in_groups_list(group: str, groups_list: Sequence[Row]) -> Optional[int]:
         group = other.simpler_group_name(group)
-        item = groups_list.item
 
-        for values in item:
-            ido = values.id
-            name = other.simpler_group_name(values.name)
+        for values in groups_list:
+            ido = values[0].id
+            name = other.simpler_group_name(values[0].name)
 
             if group == name:
                 return ido
@@ -147,100 +142,45 @@ class Other:
         return f"<b>{dirty_name}</b>\n"
 
 
-class Samples:
+class FastParsing:
     @staticmethod
-    async def show_menu(event: CallbackQuery | Message, session: AsyncSession,
-                        aiohttp_session: ClientSession, lazy: Optional[LazyEditing] = None):
-        stmt = await session.execute(select(User.group_id).where(User.id == event.from_user.id))
-        group_id = stmt.scalar()
-
-        group_name = other.get_group_name_by_id(group_id, await wrapper.group(event, aiohttp_session))
-
-        stmt = await session.execute(select(User.teacher_id).where(User.id == event.from_user.id))
-        teacher = stmt.scalar()
-
-        if teacher:
-            teacher_dirty_name = other.get_teacher_name_by_id(teacher, await wrapper.teacher(event, aiohttp_session))
-            last_name, first_name, father_name = teacher_dirty_name.split(" ")
-
-            teacher_name = f"<b>{first_name} {father_name}\n</b>"
-
-        else:
-            teacher_name = "<b><u>Не задано</u></b>\n"
-
-        current = datetime.now()
-
-        semester = other.get_semester(current)
-
-        to_date = other.get_humanize_date(current)
-
-        weekday = other.get_weekday(current)
-
-        markup = Builder(
-            Row(
-                Button("Расписание:", prefix="schelp")
-            ),
-            Row(
-                Button("Стандартное", prefix="by_default")
-            ),
-            Row(
-                Button("По педагогу", prefix="by_teacher"),
-                Button("По кабинету", prefix="by_cabinet")
-            ),
-            Row(
-                Button("По группе", prefix="by_group"),
-                Button("По предмету", prefix="by_discipline")
-            ),
-            Row(
-                Button("Настройки", prefix="settings"),
-            )
-        )
-
-        text = f"Группа: <b>{group_name}</b>\nУчитель: {teacher_name}" \
-               f"Семестр: <b>{semester}</b>\nДата: <b>{to_date}</b>\nДень недели: <b>{weekday}</b>"
-        if lazy:
-            return await lazy.edit(text, reply_markup=markup)
-
-        return await event.answer(text, reply_markup=markup)
+    async def get_group_by_id(session: AsyncSession, ido: int) -> Optional[Group]:
+        stmt = select(Group).where(Group.id == ido)
+        result = await session.execute(stmt)
+        return result.scalar()
 
     @staticmethod
-    async def show_schedule(event: CallbackQuery | Message, to_date: date, info_button_text: str,
-                            prefix: str, change_button_prefix: str, additional: str,
-                            schedule: LessonResponse | TeacherResponse | CabinentResponse,
-                            need_group_name: bool, lazy: Optional[LazyEditing] = None):
+    async def get_group_name_by_id(session: AsyncSession, ido: int) -> Optional[str]:
+        stmt = select(Group.name).where(Group.id == ido)
+        result = await session.execute(stmt)
+        return result.scalar()
 
-        human_date = other.get_humanize_date(to_date)
+    @staticmethod
+    async def get_group_id_by_name(session: AsyncSession, name: str) -> Optional[int]:
+        stmt = select(Group)
+        result = await session.execute(stmt)
+        groups = result.fetchall()
+        return Other.check_groups_in_groups_list(name, groups)
 
-        lessons = schedule.lessons
+    @staticmethod
+    async def get_teacher_by_id(session: AsyncSession, ido: int) -> Optional[Teacher]:
+        stmt = select(Teacher).where(Teacher.id == ido)
+        result = await session.execute(stmt)
+        return result.scalar()
 
-        text = ""
+    @staticmethod
+    async def get_teacher_name_by_id(session: AsyncSession, ido: int) -> Optional[str]:
+        stmt = select(Teacher.name).where(Teacher.id == ido)
+        result = await session.execute(stmt)
+        return result.scalar()
 
-        for lesson in lessons:
-            text = other.get_lesson_text(text, lesson, to_date, need_group_name)
+    @staticmethod
+    async def get_teacher_id_by_name(session: AsyncSession, name: str) -> Optional[int]:
+        stmt = select(Teacher.id).where(Teacher.name.ilike(f"%{name}%"))
+        result = await session.execute(stmt)
+        return result.scalar()
 
-        if text == "":
-            text = texts.text_when_no_lessons
 
-        left_date = other.get_work_date(to_date, plus=False)
-        right_date = other.get_work_date(to_date, plus=True)
-
-        markup = Builder(
-            Row(
-                Button("⇦", prefix=prefix, additional=f"{left_date}&{additional}"),
-                Button(f"{human_date}", prefix="sc_date"),
-                Button("⇨", prefix=prefix, additional=f"{right_date}&{additional}")
-            ),
-            Row(
-                Button(f"{info_button_text}", prefix=change_button_prefix, additional=f"{to_date}&{additional}"),
-            )
-        )
-
-        if lazy:
-            return await lazy.edit(text, reply_markup=markup)
-
-        return await event.answer(text, reply_markup=markup)
-
+fast_parsing = FastParsing()
 
 other = Other()
-
-samples = Samples()
