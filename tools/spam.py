@@ -35,7 +35,7 @@ class Spam:
             except TelegramBadRequest:
                 pass
 
-            print(f"{index}/{len(user)}")
+            print(f"{index}/{len(users_list)}")
 
 
 spam = Spam()
