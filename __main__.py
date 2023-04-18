@@ -4,6 +4,8 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
+import aiohttp
+
 from aiogram import Bot, Dispatcher
 
 from base.config import config
@@ -13,7 +15,7 @@ from handlers import menu, group, teacher, admin, rest
 
 from middlewares.basis import CheckerMiddleware, StackerMiddleware
 
-import aiohttp
+from tools import background
 
 
 def add_middleware(dp: Dispatcher, sessionmaker: async_sessionmaker) -> Dispatcher:
@@ -65,7 +67,11 @@ async def main():
     dp = add_middleware(dp, sessionmaker)
 
     async with aiohttp.ClientSession() as session:
-        await dp.start_polling(bot, aiohttp_session=session)
+        tasks = (
+            dp.start_polling(bot, aiohttp_session=session),
+            background.start(sessionmaker, aiohttp_session=session)
+        )
+        await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
