@@ -11,8 +11,6 @@ from .wrapper import wrapper
 
 from .other import other
 
-from .other import samples
-
 from .spam import spam
 
 from .jokes import jokes
@@ -20,3 +18,7 @@ from .jokes import jokes
 from .samples import samples
 
 from .const import Const
+
+from .background import background
+
+from .other import fast_parsing
