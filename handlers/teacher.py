@@ -44,40 +44,40 @@ async def schedule_teacher(message: Message, lazy: LazyEditing,
 
 @router.callback_query(ParseFilter(prefix="by_teacher"),
                        DefaultTeacherFiler(False))
-@router.callback_query(ParseFilter(prefix="scbt_change"))
+@router.callback_query(ParseFilter(prefix="teachers_schedule_change"))
 async def by_teacher(callback: CallbackQuery, session: AsyncSession,
                      lazy: LazyEditing, parser: Parser):
 
-    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="sc_teacher")
+    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="teachers_schedule")
     await session.execute(stmt)
     await session.commit()
 
-    if parser.prefix == "scbt_change":
-        button = Button("←", prefix="scbt_stop_change", additional=parser.additional)
+    if parser.prefix == "teachers_schedule_change":
+        button = Button("←", prefix="teachers_schedule_stop_change", additional=parser.additional)
 
     else:
-        button = Button("←", prefix="stop_change_sc")
+        button = Button("←", prefix="back_to_menu")
 
     markup = Builder(
         Row(button)
     )
 
-    await lazy.edit(texts.scbt_change_text, reply_markup=markup)
+    await lazy.edit(texts.teacher_insert, reply_markup=markup)
 
 
-@router.callback_query(ParseFilter(prefix="scbt_stop_change"))
-async def scbg_stop_change(callback: CallbackQuery, session: AsyncSession,
-                           lazy: LazyEditing, parser: Parser,
-                           aiohttp_session: ClientSession):
+@router.callback_query(ParseFilter(prefix="teachers_schedule_stop_change"))
+async def stop_change_teacher(callback: CallbackQuery, session: AsyncSession,
+                              lazy: LazyEditing, parser: Parser,
+                              aiohttp_session: ClientSession):
 
     stmt = update(User).where(User.id == callback.from_user.id).values(prefix="menu")
     await session.execute(stmt)
     await session.commit()
 
-    await schedule_by_teacher(callback, lazy, parser, aiohttp_session)
+    await schedule_by_teacher(callback, lazy, parser, aiohttp_session, session)
 
 
-@router.message(PrefixFilter("sc_teacher"))
+@router.message(PrefixFilter("teachers_schedule"))
 async def teacher_for_schedule(message: Message, session: AsyncSession,
                                aiohttp_session: ClientSession):
 
@@ -88,7 +88,7 @@ async def teacher_for_schedule(message: Message, session: AsyncSession,
 
     if teacher_id is None:
         markup = Builder(
-            Row(Button("⇦", prefix="stop_change_sc"))
+            Row(Button("⇦", prefix="back_to_menu"))
         )
         return await message.answer(texts.error_teacher_insert, reply_markup=markup)
 
@@ -99,7 +99,7 @@ async def teacher_for_schedule(message: Message, session: AsyncSession,
     await show_teacher_schedule(message, current, teacher_id, teacher_name, aiohttp_session)
 
 
-@router.callback_query(ParseFilter(prefix="sc_by_th"))
+@router.callback_query(ParseFilter(prefix="schedule_by_teacher"))
 async def schedule_by_teacher(callback: CallbackQuery, lazy: LazyEditing,
                               parser: Parser, aiohttp_session: ClientSession, session: AsyncSession):
 
@@ -108,6 +108,36 @@ async def schedule_by_teacher(callback: CallbackQuery, lazy: LazyEditing,
     to_date, teacher_id = additional.split("&")
 
     to_date = datetime.strptime(to_date, "%Y-%m-%d").date()
+
+    teacher_name = await fast_parsing.get_teacher_name_by_id(session, teacher_id)
+
+    await show_teacher_schedule(callback, to_date, teacher_id, teacher_name, aiohttp_session, lazy)
+
+
+@router.callback_query(ParseFilter(prefix="teachers_schedule_date"))
+async def schedule_date(callback: CallbackQuery, lazy: LazyEditing, parser: Parser):
+    teachers_id = int(parser.additional)
+
+    current = datetime.now()
+
+    await samples.show_schedule_calendar(
+        event=callback, lazy=lazy,
+        month=current.month,
+        year=current.year,
+        schedule_type="teachers",
+        prefix="teachers_calendar",
+        object_id=teachers_id
+    )
+
+
+@router.callback_query(ParseFilter(prefix="teachers_calendar"))
+async def teachers_calendar(callback: CallbackQuery, lazy: LazyEditing, parser: Parser, session: AsyncSession,
+                            aiohttp_session: ClientSession):
+
+    dirty_date, teacher_id = parser.additional.split("&")
+
+    to_date = datetime.strptime(dirty_date, "%Y-%m-%d").date()
+    teacher_id = teacher_id
 
     teacher_name = await fast_parsing.get_teacher_name_by_id(session, teacher_id)
 
@@ -124,9 +154,11 @@ async def show_teacher_schedule(event: CallbackQuery | Message, to_date: date,
     await samples.show_schedule(event=event,
                                 to_date=to_date,
                                 info_button_text=teacher_name,
-                                prefix="sc_by_th",
-                                change_button_prefix="scbt_change",
+                                prefix="schedule_by_teacher",
+                                change_button_prefix="teachers_schedule_change",
                                 additional=f"{teacher}",
                                 schedule=schedule,
                                 need_group_name=True,
+                                schedule_type="teachers",
+                                object_id=teacher,
                                 lazy=lazy)

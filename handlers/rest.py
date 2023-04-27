@@ -2,8 +2,9 @@ import random
 
 from aiogram import Router, Bot
 from aiogram.filters import Text, ChatMemberUpdatedFilter, JOIN_TRANSITION, ADMINISTRATOR, IS_NOT_MEMBER
-
 from aiogram.types import Message, CallbackQuery, ErrorEvent, ChatMemberUpdated, ReplyKeyboardRemove
+
+from aiohttp.client_exceptions import ContentTypeError
 
 from tools import other
 from tools import jokes
@@ -63,9 +64,14 @@ async def menu(callback: CallbackQuery):
 
 @router.errors()
 async def menu(event: ErrorEvent):
+    if event.exception is ContentTypeError:
+        return
+
     if event.update.callback_query:
         await event.update.callback_query.message.answer(texts.error_handler_text)
-    if event.update.message:
+
+    elif event.update.message:
         await event.update.message.answer(texts.error_handler_text)
 
+    print(event.exception)
     raise event.exception

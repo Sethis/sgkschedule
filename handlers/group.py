@@ -27,7 +27,7 @@ from tools import Parser
 router = Router(name="groups_handler")
 
 
-@router.callback_query(ParseFilter(prefix="by_default"))
+@router.callback_query(ParseFilter(prefix="by_group"))
 async def by_default(callback: CallbackQuery, session: AsyncSession,
                      lazy: LazyEditing, aiohttp_session: ClientSession):
 
@@ -41,39 +41,27 @@ async def by_default(callback: CallbackQuery, session: AsyncSession,
     await show_group_schedule(callback, current, group_id, group_name, aiohttp_session, lazy)
 
 
-@router.callback_query(ParseFilter(prefix="stop_change_sc"))
-async def stop_change_schedule(callback: CallbackQuery, session: AsyncSession,
-                               lazy: LazyEditing):
-
+@router.callback_query(ParseFilter(prefix="groups_schedule_stop_change"))
+async def stop_change_group(callback: CallbackQuery, session: AsyncSession, lazy: LazyEditing,
+                            parser: Parser, aiohttp_session: ClientSession):
     stmt = update(User).where(User.id == callback.from_user.id).values(prefix="menu")
     await session.execute(stmt)
     await session.commit()
 
-    await samples.show_menu(callback, session, lazy)
+    await schedule_by_group(callback, lazy, parser, aiohttp_session, session)
 
 
-@router.callback_query(ParseFilter(prefix="scbg_stop_change"))
-async def scbg_stop_change(callback: CallbackQuery, session: AsyncSession, lazy: LazyEditing,
-                           parser: Parser, aiohttp_session: ClientSession):
-    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="menu")
-    await session.execute(stmt)
-    await session.commit()
-
-    await schedule_by_group(callback, lazy, parser, aiohttp_session)
-
-
-@router.callback_query(ParseFilter(prefix="by_group"))
-@router.callback_query(ParseFilter(prefix="scbg_change"))
+@router.callback_query(ParseFilter(prefix="groups_schedule_change"))
 async def by_group(callback: CallbackQuery, session: AsyncSession, lazy: LazyEditing, parser: Parser):
-    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="schedule_group")
+    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="groups_schedule")
     await session.execute(stmt)
     await session.commit()
 
-    if parser.prefix == "scbg_change":
-        button = Button("⇦", prefix="scbg_stop_change", additional=parser.additional)
+    if parser.prefix == "groups_schedule_change":
+        button = Button("⇦", prefix="groups_schedule_stop_change", additional=parser.additional)
 
     else:
-        button = Button("⇦", prefix="stop_change_sc")
+        button = Button("⇦", prefix="back_to_menu")
 
     markup = Builder(
         Row(button)
@@ -82,7 +70,7 @@ async def by_group(callback: CallbackQuery, session: AsyncSession, lazy: LazyEdi
     await lazy.edit(texts.change_group_text, reply_markup=markup)
 
 
-@router.message(PrefixFilter("schedule_group"))
+@router.message(PrefixFilter("groups_schedule"))
 async def schedule_group(message: Message, session: AsyncSession, aiohttp_session: ClientSession):
     current = datetime.now().date()
 
@@ -91,7 +79,7 @@ async def schedule_group(message: Message, session: AsyncSession, aiohttp_sessio
 
     if group_id is None:
         markup = Builder(
-            Row(Button("⇦", prefix="stop_change_sc"))
+            Row(Button("⇦", prefix="back_to_menu"))
         )
         return await message.answer(texts.error_group_insert, reply_markup=markup)
 
@@ -102,23 +90,51 @@ async def schedule_group(message: Message, session: AsyncSession, aiohttp_sessio
     await show_group_schedule(message, current, group_id, group_name, aiohttp_session)
 
 
-@router.callback_query(ParseFilter(prefix="sc_by_gr"))
+@router.callback_query(ParseFilter(prefix="schedule_by_group"))
 async def schedule_by_group(callback: CallbackQuery, lazy: LazyEditing,
-                            parser: Parser, aiohttp_session: ClientSession):
+                            parser: Parser, aiohttp_session: ClientSession,
+                            session: AsyncSession):
 
-    additional = parser.additional
+    additional = parser.additional.split("&")
 
-    to_date, group, group_name = additional.split("&")
+    to_date = additional[0]
+    group_id = int(additional[1])
+
+    group_name = await fast_parsing.get_group_name_by_id(session, group_id)
 
     to_date = datetime.strptime(to_date, "%Y-%m-%d").date()
-    group = int(group)
 
-    await show_group_schedule(callback, to_date, group, group_name, aiohttp_session, lazy)
+    await show_group_schedule(callback, to_date, group_id, group_name, aiohttp_session, lazy)
 
 
-@router.callback_query(ParseFilter(prefix="sc_date"))
-async def schedule_date(callback: CallbackQuery):
-    await callback.answer(texts.scbg_date_text, show_alert=True)
+@router.callback_query(ParseFilter(prefix="groups_schedule_date"))
+async def schedule_date(callback: CallbackQuery, lazy: LazyEditing, parser: Parser):
+    group_id = int(parser.additional)
+
+    current = datetime.now()
+
+    await samples.show_schedule_calendar(
+        event=callback, lazy=lazy,
+        month=current.month,
+        year=current.year,
+        schedule_type="groups",
+        prefix="groups_calendar",
+        object_id=group_id
+    )
+
+
+@router.callback_query(ParseFilter(prefix="groups_calendar"))
+async def groups_calendar(callback: CallbackQuery, lazy: LazyEditing, parser: Parser, session: AsyncSession,
+                          aiohttp_session: ClientSession):
+
+    dirty_date, group_id = parser.additional.split("&")
+
+    to_date = datetime.strptime(dirty_date, "%Y-%m-%d").date()
+    group_id = int(group_id)
+
+    group_name = await fast_parsing.get_group_name_by_id(session, group_id)
+
+    await show_group_schedule(callback, to_date, group_id, group_name, aiohttp_session, lazy)
 
 
 async def show_group_schedule(event: CallbackQuery | Message, to_date: date, group: int, group_name: str,
@@ -127,9 +143,11 @@ async def show_group_schedule(event: CallbackQuery | Message, to_date: date, gro
 
     await samples.show_schedule(event, to_date,
                                 info_button_text=group_name,
-                                prefix="sc_by_gr",
-                                change_button_prefix="scbg_change",
-                                additional=f"{group}&{group_name}",
+                                prefix="schedule_by_group",
+                                change_button_prefix="groups_schedule_change",
+                                additional=f"{group}",
                                 schedule=schedule,
                                 need_group_name=False,
+                                schedule_type="groups",
+                                object_id=group,
                                 lazy=lazy)

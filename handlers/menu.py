@@ -17,9 +17,9 @@ from tools import fast_parsing
 from tools import other
 from tools import samples
 from tools import LazyEditing
-from tools import Button, Row, Builder
+from tools import Parser
 
-router = Router(name="menu")
+router = Router(name="menu_handler")
 
 
 @router.message(Command(commands=["start"]), flags={"start": True})
@@ -70,110 +70,30 @@ async def callback_menu(callback: CallbackQuery, session: AsyncSession,
     await samples.show_menu(callback, session, lazy)
 
 
-@router.callback_query(ParseFilter(prefix="schelp"))
+@router.callback_query(ParseFilter(prefix="schedule_help"))
 async def schelp(callback: CallbackQuery):
-    await callback.answer(texts.schelp, show_alert=True)
+    await callback.answer(texts.schedule_help, show_alert=True)
 
 
-@router.callback_query(ParseFilter(prefix="by_discipline"))
-async def discipline(callback: CallbackQuery):
-    await callback.answer("Будет добавлено, когда пользователей бота станет больше 1000, "
-                          "так что делись им с друзьями, котик", show_alert=True)
-
-
-@router.callback_query(ParseFilter(prefix="by_cabinet"))
-async def cabinet(callback: CallbackQuery):
-    await callback.answer("Будет добавлено, когда пользователей бота станет больше 1000. "
-                          "То есть уже совсем скоро. Помогай мне с этой целью и рекламируй бота друзьям:3",
-                          show_alert=True)
-
-
-@router.callback_query(ParseFilter(prefix="settings"))
-async def settings_hangler(callback: CallbackQuery, session: AsyncSession,
-                           lazy: LazyEditing):
-
-    await samples.show_settings(callback, session, lazy)
-
-
-@router.callback_query(ParseFilter(prefix="stop_change"))
-async def stop_change(callback: CallbackQuery, session: AsyncSession,
-                      lazy: LazyEditing):
+@router.callback_query(ParseFilter(prefix="back_to_menu"))
+async def stop_change_schedule(callback: CallbackQuery, session: AsyncSession,
+                               lazy: LazyEditing):
 
     stmt = update(User).where(User.id == callback.from_user.id).values(prefix="menu")
     await session.execute(stmt)
     await session.commit()
 
-    await samples.show_settings(callback, session, lazy)
+    await samples.show_menu(callback, session, lazy)
 
 
-@router.callback_query(ParseFilter(prefix="change_group"))
-async def change_group(callback: CallbackQuery, session: AsyncSession, lazy: LazyEditing):
-    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="change_group")
-    await session.execute(stmt)
-    await session.commit()
-
-    markup = Builder(
-        Row(
-            Button("⇦", prefix="stop_change")
-        )
-    )
-
-    await lazy.edit(texts.change_group_text, reply_markup=markup)
+@router.message(Text(text="Помощь"), PrefixFilter("menu"))
+async def message_menu(message: Message):
+    await samples.show_help(message, 0)
 
 
-@router.message(PrefixFilter("change_group"))
-async def insert_group(message: Message, session: AsyncSession):
-    group_id = await fast_parsing.get_group_id_by_name(session, message.text)
+@router.callback_query(ParseFilter(prefix="change_help_menu"))
+async def schelp(callback: CallbackQuery, parser: Parser, lazy: LazyEditing):
+    page_number = int(parser.additional)
 
-    if group_id is None:
-        markup = Builder(
-            Row(Button("⇦", prefix="stop_change"))
-                )
+    await samples.show_help(callback, page_number, lazy)
 
-        return await message.answer(texts.error_group_insert, reply_markup=markup)
-
-    stmt = update(User).values(group_id=group_id).where(User.id == message.from_user.id)
-    await session.execute(stmt)
-    await session.commit()
-
-    stmt = update(User).values(prefix="menu").where(User.id == message.from_user.id)
-    await session.execute(stmt)
-    await session.commit()
-
-    await samples.show_settings(message, session)
-
-
-@router.callback_query(ParseFilter(prefix="change_teacher"))
-async def change_teacher(callback: CallbackQuery, session: AsyncSession, lazy: LazyEditing):
-    stmt = update(User).where(User.id == callback.from_user.id).values(prefix="change_teacher")
-    await session.execute(stmt)
-    await session.commit()
-
-    markup = Builder(
-        Row(
-            Button("⇦", prefix="stop_change")
-            )
-    )
-
-    await lazy.edit(texts.scbt_change_text, reply_markup=markup)
-
-
-@router.message(PrefixFilter("change_teacher"))
-async def changing_teacher(message: Message, session: AsyncSession):
-    teacher_id = await fast_parsing.get_teacher_id_by_name(session, message.text)
-
-    if teacher_id is None:
-        markup = Builder(
-            Row(Button("⇦", prefix="stop_change"))
-        )
-        return await message.answer(texts.error_teacher_insert, reply_markup=markup)
-
-    stmt = update(User).values(teacher_id=teacher_id).where(User.id == message.from_user.id)
-    await session.execute(stmt)
-    await session.commit()
-
-    stmt = update(User).values(prefix="menu").where(User.id == message.from_user.id)
-    await session.execute(stmt)
-    await session.commit()
-
-    await samples.show_settings(message, session)
