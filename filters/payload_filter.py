@@ -37,3 +37,19 @@ class DefaultTeacherFiler(BaseFilter):
             return True
 
         return False
+
+
+class DefaultOfficeFiler(BaseFilter):
+    def __init__(self, is_bool: bool):
+
+        self.is_bool = is_bool
+
+    async def __call__(self, message: Message, session: AsyncSession) -> bool:
+        stmt = select(User.office_id).where(User.id == message.from_user.id)
+        result = await session.execute(stmt)
+
+        if bool(result.scalar()) == self.is_bool:
+            return True
+
+        return False
+
