@@ -5,7 +5,7 @@ import asyncio
 from typing import Optional, TypeVar
 from datetime import datetime, timedelta
 
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.exceptions import TelegramBadRequest
 
@@ -25,7 +25,7 @@ class LazyEditing:
 
         return {"text": text, "show_alert": show_alert, "url": url, "cache_time": cache_time}
 
-    async def edit(self, text: str, reply_markup: InlineKeyboardMarkup = None,
+    async def edit(self, text: str, reply_markup: InlineKeyboardMarkup = None, photo_id: Optional[str] = None,
                    answer: Optional[simple_answer] = None, parse_mode: Optional[str] = "HTML",
                    entities: Optional[list] = None, disable_web_page_preview: Optional[bool] = None) -> bool:
 
@@ -40,6 +40,12 @@ class LazyEditing:
 
         if can_edit or self.in_channel:
             try:
+                if photo_id:
+                    return await self.event.message.edit_media(media=InputMediaPhoto(media=photo_id, caption=text,
+                                                               parse_mode=parse_mode,
+                                                               caption_entities=entities),
+                                                               reply_markup=reply_markup)
+
                 return await self.event.message.edit_text(text=text, reply_markup=reply_markup,
                                                           parse_mode=parse_mode, entities=entities,
                                                           disable_web_page_preview=disable_web_page_preview)

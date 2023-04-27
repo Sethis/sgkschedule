@@ -21,4 +21,5 @@ from .const import Const
 
 from .background import background
 
-from .other import fast_parsing
+from .fast_parsing import fast_parsing
+

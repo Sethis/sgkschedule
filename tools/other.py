@@ -7,14 +7,9 @@ from datetime import date, datetime, timedelta
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, KeyboardButton
 
-from sqlalchemy import select
 from sqlalchemy import Row
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from base.types import Lesson, Teacher
-from base.types import GroupResponse, TeacherResponse
-
-from db.models import Group, Teacher
+from base.types import Lesson
 
 from .const import Const
 
@@ -39,25 +34,6 @@ class Other:
                 return ido
 
     @staticmethod
-    def get_group_name_by_id(ido: int, groups_list: GroupResponse) -> str:
-        item = groups_list.item
-
-        for values in item:
-            group_ido = values.id
-            name = values.name
-
-            if group_ido == ido:
-                return name
-
-    @staticmethod
-    def get_semester(current: datetime) -> int:
-        current_month = current.month
-
-        if current_month in range(6, 1):
-            return 1
-        return 2
-
-    @staticmethod
     def get_weekday(to_date: datetime) -> str:
         current_weekday = to_date.weekday()
 
@@ -67,6 +43,25 @@ class Other:
     def get_humanize_date(to_data: date) -> str:
         dt = to_data.strftime("%d.%m")
         return f"{dt}.{to_data.year - 2000}"
+
+    @staticmethod
+    def get_humanize_teacher_name(dirty_name: str) -> str:
+        split_name = dirty_name.split(" ")
+        if len(split_name) == 3:
+            return f"{split_name[1]} {split_name[2]}"
+
+        return dirty_name
+
+    @staticmethod
+    def get_humanize_office_name(office_name: str) -> str:
+        return office_name.replace("_", "/")
+
+    @staticmethod
+    def get_humanize_calendar_date(month: int, year: int) -> str:
+        if month < 10:
+            return f"0{month}.{year}"
+
+        return f"{month}.{year}"
 
     @staticmethod
     def get_lesson_time(to_data: date) -> dict[str, str]:
@@ -88,6 +83,21 @@ class Other:
                 return to_date
 
     @staticmethod
+    def get_calendar_work_date(month: int, year: int, plus: bool) -> tuple[int, int]:
+        if plus:
+            month += 1
+            if month > 12:
+                return 1, year+1
+
+            return month, year
+
+        month -= 1
+        if month < 1:
+            return 12, year - 1
+
+        return month, year
+
+    @staticmethod
     def get_lesson_text(text: str, lesson: Lesson, to_data: date, need_group_name: bool = False) -> str:
         lesson_time = other.get_lesson_time(to_data)[lesson.num]
 
@@ -104,83 +114,13 @@ class Other:
         return text
 
     @staticmethod
-    def get_teacher_name_by_id(ido: int, teacher_list: TeacherResponse) -> str:
-        item = teacher_list.item
-
-        for values in item:
-            teacher_id = values.id
-            name = values.name
-
-            if teacher_id == ido:
-                return name
-
-    @staticmethod
-    def get_teacher_by_name(name: str, teacher_list: TeacherResponse) -> Teacher:
-        name = name.lower()
-
-        item = teacher_list.item
-
-        for values in item:
-            teacher_name = values.name.lower()
-
-            if name in teacher_name:
-                return values
-
-    @staticmethod
     def get_main_keyboard() -> ReplyKeyboardMarkup:
         markup = ReplyKeyboardBuilder()
         markup.add(KeyboardButton(text="Меню"))
+        markup.add(KeyboardButton(text="Помощь"))
+        markup.adjust(1)
 
         return markup.as_markup(resize_keyboard=True)
 
-    @staticmethod
-    def get_humanize_teacher_name(dirty_name: str) -> str:
-        split_name = dirty_name.split(" ")
-        if len(split_name) == 3:
-            return f"<b>{split_name[1]} {split_name[2]}</b>\n"
-
-        return f"<b>{dirty_name}</b>\n"
-
-
-class FastParsing:
-    @staticmethod
-    async def get_group_by_id(session: AsyncSession, ido: int) -> Optional[Group]:
-        stmt = select(Group).where(Group.id == ido)
-        result = await session.execute(stmt)
-        return result.scalar()
-
-    @staticmethod
-    async def get_group_name_by_id(session: AsyncSession, ido: int) -> Optional[str]:
-        stmt = select(Group.name).where(Group.id == ido)
-        result = await session.execute(stmt)
-        return result.scalar()
-
-    @staticmethod
-    async def get_group_id_by_name(session: AsyncSession, name: str) -> Optional[int]:
-        stmt = select(Group)
-        result = await session.execute(stmt)
-        groups = result.fetchall()
-        return Other.check_groups_in_groups_list(name, groups)
-
-    @staticmethod
-    async def get_teacher_by_id(session: AsyncSession, ido: int) -> Optional[Teacher]:
-        stmt = select(Teacher).where(Teacher.id == ido)
-        result = await session.execute(stmt)
-        return result.scalar()
-
-    @staticmethod
-    async def get_teacher_name_by_id(session: AsyncSession, ido: int) -> Optional[str]:
-        stmt = select(Teacher.name).where(Teacher.id == ido)
-        result = await session.execute(stmt)
-        return result.scalar()
-
-    @staticmethod
-    async def get_teacher_id_by_name(session: AsyncSession, name: str) -> Optional[int]:
-        stmt = select(Teacher.id).where(Teacher.name.ilike(f"%{name}%"))
-        result = await session.execute(stmt)
-        return result.scalar()
-
-
-fast_parsing = FastParsing()
 
 other = Other()

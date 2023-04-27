@@ -22,7 +22,7 @@ class Background:
             async with session_pool() as session:
                 await Background.reset_data(session, aiohttp_session)
 
-                await asyncio.sleep(84600)
+            await asyncio.sleep(84600)
 
     @staticmethod
     async def reset_data(session: AsyncSession, aiohttp_session: ClientSession):
