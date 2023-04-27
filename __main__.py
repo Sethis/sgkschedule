@@ -11,7 +11,7 @@ from aiogram import Bot, Dispatcher
 from base.config import config
 from db.models import Base
 
-from handlers import menu, group, teacher, admin, rest
+from handlers import menu, group, teacher, admin, rest, office, calendar, discipline, settings
 
 from middlewares.basis import CheckerMiddleware, StackerMiddleware
 
@@ -42,6 +42,10 @@ def add_routers(dp: Dispatcher) -> Dispatcher:
         menu,
         group,
         teacher,
+        office,
+        discipline,
+        settings,
+        calendar,
         admin,
         rest
     )
@@ -53,7 +57,7 @@ def add_routers(dp: Dispatcher) -> Dispatcher:
 
 
 async def main():
-    engine = create_async_engine(url=config.db_url, echo=False)
+    engine = create_async_engine(url=config.db_url, echo=False, pool_size=35, pool_timeout=15)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
 
     async with engine.begin() as conn:
