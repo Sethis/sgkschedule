@@ -45,7 +45,6 @@ class StackerMiddleware(BaseMiddleware):
     @staticmethod
     async def trottling(event: Message | CallbackQuery, session: AsyncSession) -> bool:
         stmt = select(User.id).where(User.id == event.from_user.id)
-
         result = await session.execute(stmt)
         user_id = result.fetchone()
 
