@@ -17,9 +17,10 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(BigInteger(), primary_key=True)
-    prefix: Mapped[str] = mapped_column(String(15))
+    prefix: Mapped[str] = mapped_column(String(25))
     group_id: Mapped[int] = mapped_column(nullable=True)
     teacher_id: Mapped[str] = mapped_column(String(5), nullable=True)
+    office_id: Mapped[int] = mapped_column(SmallInteger())
     last_interaction = mapped_column(DateTime())
 
     def __repr__(self):
