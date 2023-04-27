@@ -2,7 +2,7 @@
 
 import asyncio
 
-from aiohttp.client_exceptions import ContentTypeError
+from aiohttp.client_exceptions import ContentTypeError, ClientConnectorError
 from aiohttp import ClientSession
 
 from json import loads
@@ -30,7 +30,7 @@ class Wrapper:
 
                 return GroupResponse(item=json)
 
-        except ContentTypeError:
+        except (ContentTypeError, ClientConnectorError):
             await asyncio.sleep(2)
 
             await Wrapper.group(aiohttp_session)
@@ -48,7 +48,7 @@ class Wrapper:
 
                 return CabinentResponse(item=cabinets)
 
-        except ContentTypeError:
+        except (ContentTypeError, ClientConnectorError):
             await asyncio.sleep(2)
 
             await Wrapper.cabinet(aiohttp_session)
@@ -61,7 +61,7 @@ class Wrapper:
 
                 return TeacherResponse(item=json)
 
-        except ContentTypeError:
+        except (ContentTypeError, ClientConnectorError):
             await asyncio.sleep(2)
 
             await Wrapper.teacher(aiohttp_session)
@@ -75,10 +75,10 @@ class Wrapper:
 
                 return LessonResponse(**json)
 
-        except ContentTypeError:
+        except (ContentTypeError, ClientConnectorError):
             await wrapper.send_message_about_exception(event)
 
-        raise Exception("Error in parsing")
+        raise ContentTypeError
 
     @staticmethod
     async def schedule_by_teacher(teacher: str, to_date: str, event: CallbackQuery | Message,
@@ -91,10 +91,26 @@ class Wrapper:
 
                 return LessonResponse(**json)
 
-        except ContentTypeError:
+        except (ContentTypeError, ClientConnectorError):
             await wrapper.send_message_about_exception(event)
 
-        raise Exception("Error in parsing")
+        raise ContentTypeError
+
+    @staticmethod
+    async def schedule_by_office(office: str, to_date: str, event: CallbackQuery | Message,
+                                 aiohttp_session: ClientSession) -> LessonResponse:
+        try:
+            async with aiohttp_session.get(
+                    f'https://asu.samgk.ru//api/schedule/cabs/{to_date}/cabNum/{office}'
+            ) as response:
+                json = await response.json()
+
+                return LessonResponse(**json)
+
+        except (ContentTypeError, ClientConnectorError):
+            await wrapper.send_message_about_exception(event)
+
+        raise ContentTypeError
 
 
 wrapper = Wrapper()
